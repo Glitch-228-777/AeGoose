@@ -10,6 +10,9 @@ GUILD_ID = os.getenv("GUILD_ID")
 ALLOWED_ROLE_IDS = [
     int(rid.strip()) for rid in os.getenv("ALLOWED_ROLE_IDS", "").split(",") if rid.strip().isdigit()
 ]
+FULL_ACCESS_ROLE_IDS = [
+    int(rid.strip()) for rid in os.getenv("FULL_ACCESS_ROLE_IDS", "").split(",") if rid.strip().isdigit()
+]
 report_role_env = os.getenv("REPORT_ROLE_ID")
 REPORT_ROLE_ID = int(report_role_env) if report_role_env else 1518934599747637288
 WARNING_BANNER_URL = os.getenv(
