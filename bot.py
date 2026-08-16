@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -54,6 +56,26 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         pass
 
 
+async def run_with_backoff():
+    delay = 30
+    max_delay = 900
+    while True:
+        try:
+            async with bot:
+                await bot.start(config.TOKEN)
+            return
+        except discord.HTTPException as error:
+            if error.status == 429:
+                print(f"Discord вернул 429, жду {delay}с перед повторной попыткой логина")
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, max_delay)
+                continue
+            raise
+        except discord.LoginFailure:
+            print("Неверный токен, останавливаюсь")
+            return
+
+
 if __name__ == "__main__":
     keep_alive()
-    bot.run(config.TOKEN)
+    asyncio.run(run_with_backoff())
