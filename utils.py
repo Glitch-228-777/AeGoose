@@ -10,17 +10,26 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def has_allowed_role(interaction: discord.Interaction) -> bool:
+def has_full_access(interaction: discord.Interaction) -> bool:
     user_role_ids = {role.id for role in interaction.user.roles}
-    return bool(user_role_ids.intersection(config.ALLOWED_ROLE_IDS)) or interaction.user.guild_permissions.administrator
+    return bool(user_role_ids.intersection(config.FULL_ACCESS_ROLE_IDS)) or interaction.user.guild_permissions.administrator
+
+
+def has_allowed_role(interaction: discord.Interaction) -> bool:
+    if has_full_access(interaction):
+        return True
+    user_role_ids = {role.id for role in interaction.user.roles}
+    return bool(user_role_ids.intersection(config.ALLOWED_ROLE_IDS))
 
 
 def has_report_role(interaction: discord.Interaction) -> bool:
-    return any(r.id == config.REPORT_ROLE_ID for r in interaction.user.roles) or interaction.user.guild_permissions.administrator
+    if has_full_access(interaction):
+        return True
+    return any(r.id == config.REPORT_ROLE_ID for r in interaction.user.roles)
 
 
 def is_admin(interaction: discord.Interaction) -> bool:
-    return interaction.user.guild_permissions.administrator
+    return has_full_access(interaction)
 
 
 async def deny(interaction: discord.Interaction, msg: str):
