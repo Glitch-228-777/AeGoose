@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import discord
 from discord import app_commands
@@ -30,7 +31,7 @@ class AdminBot(commands.Bot):
             await self.tree.sync(guild=guild_object)
         else:
             await self.tree.sync()
-        print(f"{self.user} запущен")
+        print(f"{self.user} запущен", flush=True)
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
@@ -49,7 +50,7 @@ def create_bot() -> AdminBot:
             msg = "У тебя недостаточно прав для этой команды."
         else:
             msg = f"Произошла ошибка при выполнении команды: `{type(error).__name__}`"
-            print(f"[APP COMMAND ERROR] {error!r}")
+            print(f"[APP COMMAND ERROR] {error!r}", flush=True)
         try:
             await deny(interaction, msg)
         except discord.HTTPException:
@@ -69,16 +70,18 @@ async def run_with_backoff():
             return
         except discord.HTTPException as error:
             if error.status == 429:
-                print(f"Discord вернул 429, жду {delay}с перед повторной попыткой логина")
+                print(f"Discord вернул 429, жду {delay}с перед повторной попыткой логина", flush=True)
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, max_delay)
                 continue
             raise
         except discord.LoginFailure:
-            print("Неверный токен, останавливаюсь")
+            print("Неверный токен, останавливаюсь", flush=True)
             return
 
 
 if __name__ == "__main__":
+    sys.stdout.reconfigure(line_buffering=True)
+    discord.utils.setup_logging()
     keep_alive()
     asyncio.run(run_with_backoff())
