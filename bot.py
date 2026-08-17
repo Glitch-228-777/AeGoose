@@ -38,28 +38,31 @@ class AdminBot(commands.Bot):
         raise error
 
 
-bot = AdminBot()
+def create_bot() -> AdminBot:
+    new_bot = AdminBot()
 
+    @new_bot.tree.error
+    async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandOnCooldown):
+            msg = f"Подожди {error.retry_after:.1f}с перед повторным использованием."
+        elif isinstance(error, app_commands.MissingPermissions):
+            msg = "У тебя недостаточно прав для этой команды."
+        else:
+            msg = f"Произошла ошибка при выполнении команды: `{type(error).__name__}`"
+            print(f"[APP COMMAND ERROR] {error!r}")
+        try:
+            await deny(interaction, msg)
+        except discord.HTTPException:
+            pass
 
-@bot.tree.error
-async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-    if isinstance(error, app_commands.CommandOnCooldown):
-        msg = f"Подожди {error.retry_after:.1f}с перед повторным использованием."
-    elif isinstance(error, app_commands.MissingPermissions):
-        msg = "У тебя недостаточно прав для этой команды."
-    else:
-        msg = f"Произошла ошибка при выполнении команды: `{type(error).__name__}`"
-        print(f"[APP COMMAND ERROR] {error!r}")
-    try:
-        await deny(interaction, msg)
-    except discord.HTTPException:
-        pass
+    return new_bot
 
 
 async def run_with_backoff():
     delay = 30
     max_delay = 900
     while True:
+        bot = create_bot()
         try:
             async with bot:
                 await bot.start(config.TOKEN)
