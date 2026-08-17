@@ -1,4 +1,3 @@
-import asyncio
 import sys
 
 import discord
@@ -39,49 +38,25 @@ class AdminBot(commands.Bot):
         raise error
 
 
-def create_bot() -> AdminBot:
-    new_bot = AdminBot()
-
-    @new_bot.tree.error
-    async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
-        if isinstance(error, app_commands.CommandOnCooldown):
-            msg = f"Подожди {error.retry_after:.1f}с перед повторным использованием."
-        elif isinstance(error, app_commands.MissingPermissions):
-            msg = "У тебя недостаточно прав для этой команды."
-        else:
-            msg = f"Произошла ошибка при выполнении команды: `{type(error).__name__}`"
-            print(f"[APP COMMAND ERROR] {error!r}", flush=True)
-        try:
-            await deny(interaction, msg)
-        except discord.HTTPException:
-            pass
-
-    return new_bot
+bot = AdminBot()
 
 
-async def run_with_backoff():
-    delay = 30
-    max_delay = 900
-    while True:
-        bot = create_bot()
-        try:
-            async with bot:
-                await bot.start(config.TOKEN)
-            return
-        except discord.HTTPException as error:
-            if error.status == 429:
-                print(f"Discord вернул 429, жду {delay}с перед повторной попыткой логина", flush=True)
-                await asyncio.sleep(delay)
-                delay = min(delay * 2, max_delay)
-                continue
-            raise
-        except discord.LoginFailure:
-            print("Неверный токен, останавливаюсь", flush=True)
-            return
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.CommandOnCooldown):
+        msg = f"Подожди {error.retry_after:.1f}с перед повторным использованием."
+    elif isinstance(error, app_commands.MissingPermissions):
+        msg = "У тебя недостаточно прав для этой команды."
+    else:
+        msg = f"Произошла ошибка при выполнении команды: `{type(error).__name__}`"
+        print(f"[APP COMMAND ERROR] {error!r}", flush=True)
+    try:
+        await deny(interaction, msg)
+    except discord.HTTPException:
+        pass
 
 
 if __name__ == "__main__":
     sys.stdout.reconfigure(line_buffering=True)
-    discord.utils.setup_logging()
     keep_alive()
-    asyncio.run(run_with_backoff())
+    bot.run(config.TOKEN)
