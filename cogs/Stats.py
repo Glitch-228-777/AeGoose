@@ -3,7 +3,7 @@ from discord.ext import commands, tasks
 
 STATS_ROLE_ID = 1469719460364681239
 STATS_CHANNEL_ID = 1540025437642555472
-CHANNEL_NAME_FORMAT = "На сервере: {count:05d}"
+CHANNEL_NAME_FORMAT = "На сервере: {count}"
 
 
 class MemberCountStats(commands.Cog):
