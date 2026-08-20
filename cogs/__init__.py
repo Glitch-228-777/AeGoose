@@ -5,4 +5,5 @@ EXTENSIONS = (
     "cogs.info",
     "cogs.settings",
     "cogs.staff_requests",
+    "cogs.stats",
 )
