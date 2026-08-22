@@ -69,21 +69,27 @@ async def log_action(guild: discord.Guild, embed: discord.Embed):
         return
     channel = guild.get_channel(int(channel_id))
     if channel is None:
-        return
+        try:
+            channel = await guild.fetch_channel(int(channel_id))
+        except (discord.NotFound, discord.Forbidden, discord.HTTPException) as e:
+            print(f"[LOG ACTION WARNING] Не удалось найти/получить канал логов {channel_id}: {e}", flush=True)
+            return
     try:
         await channel.send(embed=embed)
-    except discord.HTTPException:
-        pass
+    except discord.HTTPException as e:
+        print(f"[LOG ACTION ERROR] Ошибка отправки лога в канал {channel_id}: {e}", flush=True)
 
 
 def mod_embed(title, moderator, target, reason=None, color=config.COLOR_NEUTRAL, extra=None):
-    embed = discord.Embed(title=title, color=color, timestamp=now_utc())
-    embed.add_field(name="Модератор", value=f"{moderator.mention}\n`{moderator}`", inline=True)
+    embed = discord.Embed(title=f"🛡️ {title}", color=color, timestamp=now_utc())
+    if moderator:
+        embed.add_field(name="👮 Модератор", value=f"{moderator.mention}\n`{moderator}`", inline=True)
     if target is not None:
-        embed.add_field(name="Цель", value=f"{getattr(target, 'mention', target)}\n`{target}`", inline=True)
+        embed.add_field(name="👤 Участник", value=f"{getattr(target, 'mention', target)}\n`{target}`", inline=True)
     if reason:
-        embed.add_field(name="Причина", value=reason, inline=False)
+        embed.add_field(name="📝 Причина", value=f"```{reason}```", inline=False)
     if extra:
         for name, value in extra.items():
-            embed.add_field(name=name, value=value, inline=False)
+            embed.add_field(name=f"📌 {name}", value=str(value), inline=False)
+    embed.set_footer(text="Логи модерации")
     return embed
