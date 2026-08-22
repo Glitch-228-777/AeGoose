@@ -8,6 +8,7 @@ _DEFAULTS = {
     "appeal_counter": 0,
     "ebalooff": {},
     "warnings": {},
+    "whitelist": {},
     "config": {},
 }
 
@@ -113,3 +114,29 @@ def set_config(guild_id, **kwargs):
     g.update(kwargs)
     save()
     return get_config(guild_id)
+
+
+def toggle_whitelist(guild_id, user_id, punishment: str):
+    g = _data.setdefault("whitelist", {}).setdefault(str(guild_id), {})
+    user_wl = g.setdefault(str(user_id), [])
+    punishment = punishment.lower()
+    if punishment in user_wl:
+        user_wl.remove(punishment)
+        added = False
+    else:
+        user_wl.append(punishment)
+        added = True
+    save()
+    return added, user_wl
+
+
+def get_whitelist(guild_id, user_id):
+    return _data.get("whitelist", {}).get(str(guild_id), {}).get(str(user_id), [])
+
+
+def is_whitelisted(guild_id, user_id, punishment: str) -> bool:
+    user_wl = get_whitelist(guild_id, user_id)
+    if not user_wl:
+        return False
+    punishment = punishment.lower()
+    return "all" in user_wl or punishment in user_wl
