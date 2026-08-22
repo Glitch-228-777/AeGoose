@@ -22,6 +22,22 @@ class Settings(commands.Cog):
         else:
             await interaction.response.send_message("Логи модерации отключены.", ephemeral=True)
 
+    @app_commands.command(name="sync", description="Принудительно синхронизировать slash-команды бота")
+    async def sync_commands(self, interaction: discord.Interaction):
+        if not is_admin(interaction):
+            return await deny(interaction, config.ADMIN_ONLY_MSG)
+        await interaction.response.defer(ephemeral=True)
+        try:
+            if config.GUILD_ID and config.GUILD_ID.isdigit():
+                guild_object = discord.Object(id=int(config.GUILD_ID))
+                self.bot.tree.copy_global_to(guild=guild_object)
+                synced = await self.bot.tree.sync(guild=guild_object)
+            else:
+                synced = await self.bot.tree.sync()
+            await interaction.followup.send(f"Успешно синхронизировано {len(synced)} команд!", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"Ошибка синхронизации: `{e}`", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Settings(bot))
