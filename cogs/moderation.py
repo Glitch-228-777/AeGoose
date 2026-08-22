@@ -283,7 +283,7 @@ class Moderation(commands.Cog):
             "Запрет входа в войс снят", interaction.user, member, reason, config.COLOR_OK, extra={"Канал": scope}))
 
     @app_commands.command(name="warn", description="Выдать участнику предупреждение")
-    @app_commands.describe(member="Кому выдаём предупреждение", reason="За что (необязательно)")
+    @app_commands.describe(member="Кому выдаём предупреждение", reason="За что")
     async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str = "Причина не указана"):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
@@ -297,8 +297,20 @@ class Moderation(commands.Cog):
             "ts": now_utc().isoformat(),
         }
         total = storage.add_warning(interaction.guild.id, member.id, entry)
-        unix_ts = int(now_utc().timestamp())
-        await interaction.response.send_message(view=WarningView(member, interaction.user, reason, unix_ts))
+        
+        embed = discord.Embed(
+            title="⚠️ Выдано предупреждение",
+            color=config.COLOR_WARN,
+            timestamp=now_utc()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="👤 Участник", value=f"{member.mention}\n`{member}`", inline=True)
+        embed.add_field(name="👮 Модератор", value=f"{interaction.user.mention}\n`{interaction.user}`", inline=True)
+        embed.add_field(name="📊 Всего варнов", value=f"**{total}**", inline=True)
+        embed.add_field(name="📝 Причина", value=f"```{reason}```", inline=False)
+        embed.set_footer(text=f"ID участника: {member.id}")
+
+        await interaction.response.send_message(embed=embed)
         await log_action(interaction.guild, mod_embed(
             "Предупреждение", interaction.user, member, reason, config.COLOR_WARN,
             extra={"Всего предупреждений": str(total)}))
@@ -430,11 +442,11 @@ class Moderation(commands.Cog):
         app_commands.Choice(name="Варн (warn)", value="warn"),
         app_commands.Choice(name="Все наказания (all)", value="all"),
     ])
-    async def whitelist(self, interaction: discord.Interaction, member: discord.Member, punishment: app_commands.Choice[str]):
+    async def whitelist(self, interaction: discord.Interaction, member: discord.Member, punishment: str):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
         
-        p_val = punishment.value if isinstance(punishment, app_commands.Choice) else str(punishment)
+        p_val = punishment
         added, current_list = storage.toggle_whitelist(interaction.guild.id, member.id, p_val)
         
         punishment_names = {
@@ -448,16 +460,25 @@ class Moderation(commands.Cog):
             "all": "Все наказания"
         }
         p_name = punishment_names.get(p_val, p_val)
-        if added:
-            msg = f"Участник {member.mention} добавлен в вайтлист от наказания: **{p_name}**."
-        else:
-            msg = f"Наказание **{p_name}** удалено из вайтлиста участника {member.mention}."
-        
-        await interaction.response.send_message(msg, ephemeral=True)
+        wl_formatted = ", ".join([punishment_names.get(x, x) for x in current_list]) if current_list else "Отсутствует"
+
+        embed = discord.Embed(
+            title="🛡️ Настройка вайтлиста",
+            color=config.COLOR_OK if added else config.COLOR_WARN,
+            timestamp=now_utc()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="👤 Участник", value=f"{member.mention}\n`{member}`", inline=True)
+        embed.add_field(name="⚡ Статус", value="✅ **Защита добавлена**" if added else "❌ **Защита снята**", inline=True)
+        embed.add_field(name="🔒 Наказание", value=f"**{p_name}**", inline=True)
+        embed.add_field(name="📋 Текущий вайтлист", value=f"`{wl_formatted}`", inline=False)
+        embed.set_footer(text=f"Модератор: {interaction.user}")
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         await log_action(interaction.guild, mod_embed(
-            "Вайтлист", interaction.user, member,
+            "Изменение вайтлиста", interaction.user, member,
             f"Статус: {'Добавлена защита' if added else 'Снята защита'} ({p_name})", config.COLOR_INFO,
-            extra={"Текущий вайтлист": ", ".join([punishment_names.get(x, x) for x in current_list]) if current_list else "Пусто"}
+            extra={"Текущий вайтлист": wl_formatted}
         ))
 
 
