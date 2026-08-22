@@ -339,6 +339,53 @@ class Moderation(commands.Cog):
         await log_action(interaction.guild, mod_embed(
             "Предупреждения очищены", interaction.user, member, f"Удалено: {count}", config.COLOR_OK))
 
+    @app_commands.command(name="unwarn", description="Снять конкретное предупреждение с участника")
+    @app_commands.describe(
+        member="У кого снимаем предупреждение",
+        index="Номер варна из /warnings пусто дял последнего варна"
+    )
+    async def unwarn(self, interaction: discord.Interaction, member: discord.Member, index: int = None):
+        if not has_allowed_role(interaction):
+            return await deny(interaction, config.NO_PERMISSION_MSG)
+        
+        target_idx = index if index is not None else -1
+        success, removed, remaining = storage.remove_warning(interaction.guild.id, member.id, target_idx)
+        
+        if not success:
+            if remaining == 0:
+                return await deny(interaction, f"У {member.mention} нет активных предупреждений.")
+            else:
+                return await deny(interaction, f"Предупреждение #{index} не найдено. Всего предупреждений: {remaining}.")
+        
+        reason_text = removed.get("reason", "Причина не указана") if removed else "Причина не указана"
+        
+        embed = discord.Embed(
+            title="✅ Предупреждение снято",
+            color=config.COLOR_OK,
+            timestamp=now_utc()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="👤 Участник", value=f"{member.mention}\n`{member}`", inline=True)
+        embed.add_field(name="👮 Модератор", value=f"{interaction.user.mention}\n`{interaction.user}`", inline=True)
+        embed.add_field(name="📊 Осталось варнов", value=f"**{remaining}**", inline=True)
+        embed.add_field(name="📝 Снятый варн", value=f"```{reason_text}```", inline=False)
+        embed.set_footer(text=f"ID участника: {member.id}")
+
+        await interaction.response.send_message(embed=embed)
+        await log_action(interaction.guild, mod_embed(
+            "Снятие предупреждения", interaction.user, member,
+            f"Снятое предупреждение: {reason_text}", config.COLOR_OK,
+            extra={"Осталось предупреждений": str(remaining)}
+        ))
+
+    @app_commands.command(name="removewarn", description="Снять конкретное предупреждение с участника")
+    @app_commands.describe(
+        member="У кого снимаем предупреждение",
+        index="Номер варна из /warnings пусто для последнего варна"
+    )
+    async def removewarn(self, interaction: discord.Interaction, member: discord.Member, index: int = None):
+        await self.unwarn(interaction, member, index)
+
     @app_commands.command(name="slowmode", description="Включить медленный режим в этом канале")
     @app_commands.describe(seconds="Задержка между сообщениями в секундах (0 - выключить)")
     async def slowmode(self, interaction: discord.Interaction, seconds: int):
