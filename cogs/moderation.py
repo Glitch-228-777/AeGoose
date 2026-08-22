@@ -21,7 +21,7 @@ class Moderation(commands.Cog):
                   reason: str = "Причина не указана", delete_days: int = 0):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
-        ok, why = can_moderate(interaction, member)
+        ok, why = can_moderate(interaction, member, action="ban")
         if not ok:
             return await deny(interaction, why)
         delete_days = max(0, min(7, delete_days))
@@ -54,7 +54,7 @@ class Moderation(commands.Cog):
     async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "Причина не указана"):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
-        ok, why = can_moderate(interaction, member)
+        ok, why = can_moderate(interaction, member, action="kick")
         if not ok:
             return await deny(interaction, why)
         try:
@@ -71,7 +71,7 @@ class Moderation(commands.Cog):
                        minutes: int = 0, hours: int = 0, days: int = 0, reason: str = "Причина не указана"):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
-        ok, why = can_moderate(interaction, member)
+        ok, why = can_moderate(interaction, member, action="timeout")
         if not ok:
             return await deny(interaction, why)
         duration = timedelta(days=days, hours=hours, minutes=minutes)
@@ -107,7 +107,7 @@ class Moderation(commands.Cog):
                     minutes: int = 5, reason: str = "Причина не указана"):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
-        ok, why = can_moderate(interaction, member)
+        ok, why = can_moderate(interaction, member, action="mute")
         if not ok:
             return await deny(interaction, why)
         if member.voice is None or member.voice.channel is None:
@@ -157,7 +157,7 @@ class Moderation(commands.Cog):
                         minutes: int | None = None, reason: str = "Причина не указана"):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
-        ok, why = can_moderate(interaction, member)
+        ok, why = can_moderate(interaction, member, action="chatmute")
         if not ok:
             return await deny(interaction, why)
         try:
@@ -220,7 +220,7 @@ class Moderation(commands.Cog):
                         reason: str = "Причина не указана"):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
-        ok, why = can_moderate(interaction, member)
+        ok, why = can_moderate(interaction, member, action="voiceban")
         if not ok:
             return await deny(interaction, why)
         targets = [channel] if channel is not None else list(interaction.guild.voice_channels)
@@ -283,11 +283,11 @@ class Moderation(commands.Cog):
             "Запрет входа в войс снят", interaction.user, member, reason, config.COLOR_OK, extra={"Канал": scope}))
 
     @app_commands.command(name="warn", description="Выдать участнику предупреждение")
-    @app_commands.describe(member="Кому выдаём предупреждение", reason="За что")
-    async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str):
+    @app_commands.describe(member="Кому выдаём предупреждение", reason="За что (необязательно)")
+    async def warn(self, interaction: discord.Interaction, member: discord.Member, reason: str = "Причина не указана"):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
-        ok, why = can_moderate(interaction, member)
+        ok, why = can_moderate(interaction, member, action="warn")
         if not ok:
             return await deny(interaction, why)
         entry = {
@@ -391,6 +391,9 @@ class Moderation(commands.Cog):
                         hours: int = 0, minutes: int = 0, seconds: int = 0):
         if not has_allowed_role(interaction):
             return await deny(interaction, config.NO_PERMISSION_MSG)
+        ok, why = can_moderate(interaction, member, action="ebalooff")
+        if not ok:
+            return await deny(interaction, why)
         total_seconds = hours * 3600 + minutes * 60 + seconds
         if total_seconds <= 0:
             return await deny(interaction, "Укажи время.")
@@ -411,6 +414,51 @@ class Moderation(commands.Cog):
             await log_action(interaction.guild, mod_embed("Ebalooff снят", interaction.user, member, None, config.COLOR_OK))
         else:
             await interaction.response.send_message(f"{member.mention} не был замучен.", ephemeral=True)
+
+    @app_commands.command(name="whitelist", description="Указать наказание, которое нельзя наложить на участника")
+    @app_commands.describe(
+        member="Пинг участника",
+        punishment="Наказание, которое нельзя будет наложить на участника"
+    )
+    @app_commands.choices(punishment=[
+        app_commands.Choice(name="Бан (ban)", value="ban"),
+        app_commands.Choice(name="Кик (kick)", value="kick"),
+        app_commands.Choice(name="Таймаут (timeout)", value="timeout"),
+        app_commands.Choice(name="Мут в войсе (mute)", value="mute"),
+        app_commands.Choice(name="Мут в чате (chatmute)", value="chatmute"),
+        app_commands.Choice(name="Запрет войса (voiceban)", value="voiceban"),
+        app_commands.Choice(name="Варн (warn)", value="warn"),
+        app_commands.Choice(name="Все наказания (all)", value="all"),
+    ])
+    async def whitelist(self, interaction: discord.Interaction, member: discord.Member, punishment: app_commands.Choice[str]):
+        if not has_allowed_role(interaction):
+            return await deny(interaction, config.NO_PERMISSION_MSG)
+        
+        p_val = punishment.value if isinstance(punishment, app_commands.Choice) else str(punishment)
+        added, current_list = storage.toggle_whitelist(interaction.guild.id, member.id, p_val)
+        
+        punishment_names = {
+            "ban": "Бан",
+            "kick": "Кик",
+            "timeout": "Таймаут",
+            "mute": "Голосовой мут",
+            "chatmute": "Мут в чате",
+            "voiceban": "Запрет войса",
+            "warn": "Варн",
+            "all": "Все наказания"
+        }
+        p_name = punishment_names.get(p_val, p_val)
+        if added:
+            msg = f"Участник {member.mention} добавлен в вайтлист от наказания: **{p_name}**."
+        else:
+            msg = f"Наказание **{p_name}** удалено из вайтлиста участника {member.mention}."
+        
+        await interaction.response.send_message(msg, ephemeral=True)
+        await log_action(interaction.guild, mod_embed(
+            "Вайтлист", interaction.user, member,
+            f"Статус: {'Добавлена защита' if added else 'Снята защита'} ({p_name})", config.COLOR_INFO,
+            extra={"Текущий вайтлист": ", ".join([punishment_names.get(x, x) for x in current_list]) if current_list else "Пусто"}
+        ))
 
 
 async def setup(bot: commands.Bot):
