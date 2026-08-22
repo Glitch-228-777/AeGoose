@@ -28,6 +28,56 @@ class Info(commands.Cog):
             embed.add_field(name="Таймаут до", value=discord.utils.format_dt(member.timed_out_until, "R"), inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="profile", description="Показать профиль человека (количество варнов, даты захода и создания)")
+    @app_commands.describe(member="Пинг человека, чей профиль показать (оставь пустым для своего профиля)")
+    async def profile(self, interaction: discord.Interaction, member: discord.Member = None):
+        member = member or interaction.user
+        warns = len(storage.get_warnings(interaction.guild.id, member.id))
+        wl = storage.get_whitelist(interaction.guild.id, member.id)
+
+        punishment_names = {
+            "ban": "Бан",
+            "kick": "Кик",
+            "timeout": "Таймаут",
+            "mute": "Голосовой мут",
+            "chatmute": "Мут в чате",
+            "voiceban": "Запрет войса",
+            "warn": "Варн",
+            "all": "Все наказания"
+        }
+        wl_str = ", ".join([punishment_names.get(x, x) for x in wl]) if wl else "Отсутствует"
+
+        embed = discord.Embed(
+            title=f"Профиль — {member.display_name}",
+            color=member.color if member.color.value else config.COLOR_INFO,
+            timestamp=now_utc()
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.add_field(name="Участник", value=f"{member.mention}\n`{member.id}`", inline=True)
+        embed.add_field(name="Варнов", value=str(warns), inline=True)
+        embed.add_field(name="Вайтлист", value=wl_str, inline=True)
+        embed.add_field(name="Старшая роль", value=member.top_role.mention, inline=True)
+
+        embed.add_field(
+            name="Создание аккаунта",
+            value=f"{discord.utils.format_dt(member.created_at, 'F')} ({discord.utils.format_dt(member.created_at, 'R')})",
+            inline=False
+        )
+        if member.joined_at:
+            embed.add_field(
+                name="Заход на сервер",
+                value=f"{discord.utils.format_dt(member.joined_at, 'F')} ({discord.utils.format_dt(member.joined_at, 'R')})",
+                inline=False
+            )
+        if member.is_timed_out():
+            embed.add_field(
+                name="Таймаут до",
+                value=f"{discord.utils.format_dt(member.timed_out_until, 'F')} ({discord.utils.format_dt(member.timed_out_until, 'R')})",
+                inline=False
+            )
+
+        await interaction.response.send_message(embed=embed)
+
     @app_commands.command(name="serverinfo", description="Показать информацию о сервере")
     async def serverinfo(self, interaction: discord.Interaction):
         g = interaction.guild
