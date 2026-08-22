@@ -17,10 +17,13 @@ _DEFAULTS = {
 _lock = threading.Lock()
 _supabase = None
 
-if config.SUPABASE_URL and config.SUPABASE_KEY:
+supabase_url = getattr(config, "SUPABASE_URL", os.getenv("SUPABASE_URL"))
+supabase_key = getattr(config, "SUPABASE_KEY", os.getenv("SUPABASE_KEY"))
+
+if supabase_url and supabase_key:
     try:
         from supabase import create_client
-        _supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+        _supabase = create_client(supabase_url, supabase_key)
         print("[STORAGE] Подключение к Supabase успешно инициализировано.", flush=True)
     except Exception as e:
         print(f"[STORAGE WARNING] Ошибка создания клиента Supabase: {e}", flush=True)
@@ -201,4 +204,3 @@ def is_whitelisted(guild_id, user_id, punishment: str) -> bool:
         return False
     punishment = punishment.lower()
     return "all" in user_wl or punishment in user_wl
-
