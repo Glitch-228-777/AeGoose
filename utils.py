@@ -39,7 +39,7 @@ async def deny(interaction: discord.Interaction, msg: str):
         await interaction.response.send_message(msg, ephemeral=True)
 
 
-def can_moderate(interaction: discord.Interaction, member: discord.Member) -> tuple[bool, str]:
+def can_moderate(interaction: discord.Interaction, member: discord.Member, action: str = None) -> tuple[bool, str]:
     if member.id == interaction.user.id:
         return False, "Нельзя применить эту команду к самому себе."
     if member.bot:
@@ -53,7 +53,11 @@ def can_moderate(interaction: discord.Interaction, member: discord.Member) -> tu
     me = interaction.guild.me
     if member.top_role >= me.top_role:
         return False, "У цели роль выше моей."
+    if action and interaction.guild:
+        if storage.is_whitelisted(interaction.guild.id, member.id, action):
+            return False, f"Участник защищен вайтлистом от наказания: **{action}**."
     return True, ""
+
 
 
 async def log_action(guild: discord.Guild, embed: discord.Embed):
