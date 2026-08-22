@@ -2,6 +2,8 @@ import json
 import os
 import threading
 
+import config
+
 DATA_FILE = os.getenv("DATA_FILE", "data.json")
 
 _DEFAULTS = {
@@ -13,9 +15,41 @@ _DEFAULTS = {
 }
 
 _lock = threading.Lock()
+_supabase = None
+
+if config.SUPABASE_URL and config.SUPABASE_KEY:
+    try:
+        from supabase import create_client
+        _supabase = create_client(config.SUPABASE_URL, config.SUPABASE_KEY)
+        print("[STORAGE] Подключение к Supabase успешно инициализировано.", flush=True)
+    except Exception as e:
+        print(f"[STORAGE WARNING] Ошибка создания клиента Supabase: {e}", flush=True)
+
+
+def _read_supabase():
+    if _supabase is None:
+        return None
+    try:
+        response = _supabase.table("bot_storage").select("*").execute()
+        if response.data:
+            supabase_data = dict(_DEFAULTS)
+            for row in response.data:
+                k = row.get("key")
+                v = row.get("value")
+                if k in supabase_data:
+                    supabase_data[k] = v
+            print(f"[STORAGE] Загружены данные из базы Supabase ({len(response.data)} ключей).", flush=True)
+            return supabase_data
+    except Exception as e:
+        print(f"[STORAGE WARNING] Ошибка чтения Supabase (проверьте таблицу bot_storage): {e}", flush=True)
+    return None
 
 
 def _read():
+    sp_data = _read_supabase()
+    if sp_data is not None:
+        return sp_data
+
     if not os.path.exists(DATA_FILE):
         return dict(_DEFAULTS)
     try:
@@ -34,8 +68,16 @@ def _write(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp, DATA_FILE)
 
+    if _supabase is not None:
+        try:
+            records = [{"key": k, "value": v} for k, v in data.items()]
+            _supabase.table("bot_storage").upsert(records).execute()
+        except Exception as e:
+            print(f"[STORAGE WARNING] Ошибка сохранения в Supabase: {e}", flush=True)
+
 
 _data = _read()
+
 
 
 def save():
@@ -93,6 +135,25 @@ def clear_warnings(guild_id, user_id):
     return count
 
 
+def remove_warning(guild_id, user_id, index: int = -1):
+    g = _data.setdefault("warnings", {}).setdefault(str(guild_id), {})
+    user_warns = g.setdefault(str(user_id), [])
+    if not user_warns:
+        return False, None, 0
+
+    if index == -1 or index is None:
+        removed = user_warns.pop()
+    else:
+        idx = index - 1
+        if idx < 0 or idx >= len(user_warns):
+            return False, None, len(user_warns)
+        removed = user_warns.pop(idx)
+
+    save()
+    return True, removed, len(user_warns)
+
+
+
 _CONFIG_DEFAULTS = {
     "log_channel": None,
     "antispam_enabled": True,
@@ -140,3 +201,4 @@ def is_whitelisted(guild_id, user_id, punishment: str) -> bool:
         return False
     punishment = punishment.lower()
     return "all" in user_wl or punishment in user_wl
+
